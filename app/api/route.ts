@@ -1,12 +1,49 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest } from 'next/server';
+import { encodingForModel } from 'js-tiktoken';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Ensure API keys are present
 if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('missing ANTHROPIC_API_KEY');
 }
 
+if (!process.env.GEMINI_API_KEY) {
+    console.warn('GEMINI_API_KEY not found - Gemini token counting will be disabled');
+}
+
 // Default model to use if none is provided
 const DEFAULT_MODEL = 'claude-3-7-sonnet-20250219';
+
+// Function to get GPT-4o token count
+function getGPT4oTokenCount(text: string) {
+    try {
+        // Use the 'gpt-4o' encoder which is used for GPT-4o as well
+        const encoder = encodingForModel('gpt-4o');
+        return encoder.encode(text).length;
+    } catch (error) {
+        console.error('GPT-4o tokenization error:', error);
+        return null;
+    }
+}
+
+async function getGeminiTokenCount(text: string) {
+    try {
+        if (!process.env.GEMINI_API_KEY) return null;
+        
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        
+        const result = await model.countTokens({
+            contents: [{ role: 'user', parts: [{ text }] }]
+        });
+        
+        return result.totalTokens;
+    } catch (error) {
+        console.error('Gemini tokenization error:', error);
+        return null;
+    }
+}
 
 export async function POST(req: NextRequest) {
     try {
@@ -17,6 +54,8 @@ export async function POST(req: NextRequest) {
         let text = '';
         let fileChars = 0;
         let model = DEFAULT_MODEL;
+        let gpt4oTokens = null;
+        let geminiTokens = null;
         
         // Determine request type based on content-type header
         const contentType = req.headers.get('content-type') || '';
@@ -63,7 +102,9 @@ export async function POST(req: NextRequest) {
                     return Response.json({ 
                         ...count,
                         fileChars,
-                        model: model
+                        model: model,
+                        gpt4oTokens,
+                        geminiTokens
                     });
                 }
                 else if (fileType === 'image') {
@@ -100,12 +141,18 @@ export async function POST(req: NextRequest) {
                     return Response.json({
                         ...count,
                         fileChars,
-                        model: model
+                        model: model,
+                        gpt4oTokens,
+                        geminiTokens
                     });
                 }
                 else {
                     // For text files, convert to UTF-8 string
                     text = new TextDecoder().decode(fileContent);
+                    
+                    // For text files, we can attempt to get token counts from other models
+                    gpt4oTokens = await getGPT4oTokenCount(text);
+                    geminiTokens = await getGeminiTokenCount(text);
                 }
             }
         } else {
@@ -113,6 +160,10 @@ export async function POST(req: NextRequest) {
             const jsonData = await req.json();
             text = jsonData.text || '';
             model = jsonData.model || DEFAULT_MODEL;
+            
+            // Get token counts from other models for text input
+            gpt4oTokens = await getGPT4oTokenCount(text);
+            geminiTokens = await getGeminiTokenCount(text);
         }
 
         // Count tokens using Anthropic API for text
@@ -128,7 +179,9 @@ export async function POST(req: NextRequest) {
         return Response.json({ 
             ...count,
             fileChars,
-            model: model
+            model: model,
+            gpt4oTokens,
+            geminiTokens
         });
     } catch (error) {
         console.error('Token counting error:', error);

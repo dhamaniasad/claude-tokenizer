@@ -58,8 +58,16 @@ export const TokenizerInput = () => {
     const [fileType, setFileType] = useState<'image' | 'pdf' | 'text' | 'unknown'>('unknown');
     const [filePreview, setFilePreview] = useState<string | null>(null);
     const [selectedModel, setSelectedModel] = useState(CLAUDE_MODELS[0].id);
-    const [stats, setStats] = useState<{ tokens: number | null; chars: number; fileName?: string }>({ 
+    const [stats, setStats] = useState<{
+        tokens: number | null;
+        gpt4oTokens: number | null;
+        geminiTokens: number | null;
+        chars: number;
+        fileName?: string
+    }>({
         tokens: null, 
+        gpt4oTokens: null,
+        geminiTokens: null,
         chars: 0 
     });
     const [error, setError] = useState<string | null>(null);
@@ -68,13 +76,15 @@ export const TokenizerInput = () => {
 
     const handleAnalyzeText = async (text: string) => {
         if (!text.trim()) {
-            setStats({ tokens: null, chars: 0 });
+            setStats({ tokens: null, gpt4oTokens: null, geminiTokens: null, chars: 0 });
             setError(null);
             return;
         }
 
         try {
             setIsProcessing(true);
+            
+            // Get all token counts from the API
             const response = await fetch('/api', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -91,13 +101,15 @@ export const TokenizerInput = () => {
             const data = await response.json();
             setStats({
                 tokens: data.input_tokens > 7 ? data.input_tokens - 7 : 0,
+                gpt4oTokens: data.gpt4oTokens,
+                geminiTokens: data.geminiTokens,
                 chars: text.length,
             });
             setError(null);
         } catch (err) {
             console.error("Token counting error:", err);
             setError("Failed to analyze text. Please try again.");
-            setStats({ tokens: null, chars: text.length });
+            setStats({ tokens: null, gpt4oTokens: null, geminiTokens: null, chars: text.length });
         } finally {
             setIsProcessing(false);
         }
@@ -126,6 +138,8 @@ export const TokenizerInput = () => {
             const data = await response.json();
             setStats({
                 tokens: data.input_tokens > 7 ? data.input_tokens - 7 : 0,
+                gpt4oTokens: data.gpt4oTokens,
+                geminiTokens: data.geminiTokens,
                 chars: data.fileChars || 0,
                 fileName: file.name
             });
@@ -133,7 +147,7 @@ export const TokenizerInput = () => {
         } catch (err) {
             console.error("Token counting error:", err);
             setError("Failed to analyze file. Please try again.");
-            setStats({ tokens: null, chars: 0 });
+            setStats({ tokens: null, gpt4oTokens: null, geminiTokens: null, chars: 0 });
         } finally {
             setIsProcessing(false);
         }
@@ -155,7 +169,7 @@ export const TokenizerInput = () => {
             setFile(selectedFile);
             setFileType(type);
             setText('');
-            setStats({ tokens: null, chars: 0, fileName: selectedFile.name });
+            setStats({ tokens: null, gpt4oTokens: null, geminiTokens: null, chars: 0, fileName: selectedFile.name });
             
             // Create preview for image files
             if (type === 'image') {
@@ -174,7 +188,7 @@ export const TokenizerInput = () => {
         setFile(null);
         setFileType('unknown');
         setFilePreview(null);
-        setStats({ tokens: null, chars: 0 });
+        setStats({ tokens: null, gpt4oTokens: null, geminiTokens: null, chars: 0 });
         // Reset the file input
         const fileInput = document.getElementById('file-upload') as HTMLInputElement;
         if (fileInput) {
@@ -294,6 +308,8 @@ export const TokenizerInput = () => {
             {/* Token metrics display */}
             <TokenMetrics 
                 tokens={stats.tokens ?? 0} 
+                gpt4oTokens={stats.gpt4oTokens}
+                geminiTokens={stats.geminiTokens}
                 chars={stats.chars} 
                 isProcessing={isProcessing}
                 fileName={stats.fileName}
@@ -306,6 +322,8 @@ export const TokenizerInput = () => {
 
 interface TokenMetricsProps {
     tokens: number;
+    gpt4oTokens: number | null;
+    geminiTokens: number | null;
     chars: number;
     isProcessing: boolean;
     fileName?: string;
@@ -313,10 +331,11 @@ interface TokenMetricsProps {
     model: string;
 }
 
-export const TokenMetrics = ({ tokens, chars, isProcessing, fileName, fileType, model }: TokenMetricsProps) => (
+export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, chars, isProcessing, fileName, fileType, model }: TokenMetricsProps) => (
     <div className="flex flex-wrap gap-6 p-4 rounded-xl bg-neutral-800 border border-neutral-700">
+        {/* Claude Tokens */}
         <div className="space-y-1">
-            <h2 className="text-xs font-medium text-neutral-400">Tokens</h2>
+            <h2 className="text-xs font-medium text-neutral-400">Claude Tokens</h2>
             <p className="text-3xl font-light">
                 {isProcessing ? (
                     <span className="animate-pulse">...</span>
@@ -325,6 +344,40 @@ export const TokenMetrics = ({ tokens, chars, isProcessing, fileName, fileType, 
                 )}
             </p>
         </div>
+        
+        {/* GPT-4o Tokens - only show for text inputs */}
+        {(fileType === 'text' || !fileName) && (
+            <div className="space-y-1">
+                <h2 className="text-xs font-medium text-neutral-400">GPT-4o Tokens</h2>
+                <p className="text-3xl font-light">
+                    {isProcessing ? (
+                        <span className="animate-pulse">...</span>
+                    ) : gpt4oTokens !== null ? (
+                        gpt4oTokens.toLocaleString()
+                    ) : (
+                        "—"
+                    )}
+                </p>
+            </div>
+        )}
+        
+        {/* Gemini Tokens - only show for text inputs */}
+        {(fileType === 'text' || !fileName) && (
+            <div className="space-y-1">
+                <h2 className="text-xs font-medium text-neutral-400">Gemini Tokens</h2>
+                <p className="text-3xl font-light">
+                    {isProcessing ? (
+                        <span className="animate-pulse">...</span>
+                    ) : geminiTokens !== null ? (
+                        geminiTokens.toLocaleString()
+                    ) : (
+                        "—"
+                    )}
+                </p>
+            </div>
+        )}
+        
+        {/* Character Count */}
         <div className="space-y-1">
             <h2 className="text-xs font-medium text-neutral-400">Characters</h2>
             <p className="text-3xl font-light">
@@ -335,10 +388,14 @@ export const TokenMetrics = ({ tokens, chars, isProcessing, fileName, fileType, 
                 )}
             </p>
         </div>
+        
+        {/* Model */}
         <div className="space-y-1">
             <h2 className="text-xs font-medium text-neutral-400">Model</h2>
             <p className="text-sm">{model}</p>
         </div>
+        
+        {/* File info if applicable */}
         {fileName && (
             <div className="space-y-1 flex-1">
                 <h2 className="text-xs font-medium text-neutral-400">
