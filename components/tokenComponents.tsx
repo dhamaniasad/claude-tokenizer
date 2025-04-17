@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Upload, FileText, X, ChevronDown } from "lucide-react";
+import { Upload, FileText, Image as ImageIcon, X, ChevronDown } from "lucide-react";
 
 // Debounce utility function
 const debounce = <T extends (...args: any[]) => void>(func: T, delay: number) => {
@@ -22,9 +22,41 @@ const CLAUDE_MODELS = [
     { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
 ];
 
+// List of supported file types
+const ACCEPTED_FILE_TYPES = {
+    image: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
+    pdf: ['.pdf'],
+    text: ['.txt', '.md', '.js', '.jsx', '.ts', '.tsx', '.json', '.html', '.css', '.csv']
+};
+
+// Get accepted file types string for file input
+const getAcceptedFileTypes = () => {
+    return [
+        ...ACCEPTED_FILE_TYPES.image,
+        ...ACCEPTED_FILE_TYPES.pdf,
+        ...ACCEPTED_FILE_TYPES.text
+    ].join(',');
+};
+
+// Determine file type category
+const getFileTypeCategory = (file: File): 'image' | 'pdf' | 'text' | 'unknown' => {
+    if (file.type.startsWith('image/')) return 'image';
+    if (file.type === 'application/pdf') return 'pdf';
+    if (file.type.includes('text') ||
+        file.type.includes('javascript') ||
+        file.type.includes('json') ||
+        file.type.includes('html') ||
+        file.type.includes('css') ||
+        file.name.endsWith('.md') ||
+        file.name.endsWith('.csv')) return 'text';
+    return 'unknown';
+};
+
 export const TokenizerInput = () => {
     const [text, setText] = useState('');
     const [file, setFile] = useState<File | null>(null);
+    const [fileType, setFileType] = useState<'image' | 'pdf' | 'text' | 'unknown'>('unknown');
+    const [filePreview, setFilePreview] = useState<string | null>(null);
     const [selectedModel, setSelectedModel] = useState(CLAUDE_MODELS[0].id);
     const [stats, setStats] = useState<{ tokens: number | null; chars: number; fileName?: string }>({ 
         tokens: null, 
@@ -80,6 +112,7 @@ export const TokenizerInput = () => {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('model', selectedModel);
+            formData.append('fileType', fileType);
             
             const response = await fetch('/api', {
                 method: 'POST',
@@ -118,14 +151,29 @@ export const TokenizerInput = () => {
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0] || null;
         if (selectedFile) {
+            const type = getFileTypeCategory(selectedFile);
             setFile(selectedFile);
+            setFileType(type);
             setText('');
             setStats({ tokens: null, chars: 0, fileName: selectedFile.name });
+            
+            // Create preview for image files
+            if (type === 'image') {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    setFilePreview(e.target?.result as string);
+                };
+                reader.readAsDataURL(selectedFile);
+            } else {
+                setFilePreview(null);
+            }
         }
     };
 
     const clearFile = () => {
         setFile(null);
+        setFileType('unknown');
+        setFilePreview(null);
         setStats({ tokens: null, chars: 0 });
         // Reset the file input
         const fileInput = document.getElementById('file-upload') as HTMLInputElement;
@@ -183,7 +231,7 @@ export const TokenizerInput = () => {
                             id="file-upload"
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                             onChange={handleFileChange}
-                            accept=".txt,.md,.js,.jsx,.ts,.tsx,.json,.html,.css,.csv,.pdf"
+                            accept={getAcceptedFileTypes()}
                         />
                         <button className="flex items-center gap-2 rounded-md bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700 border border-neutral-700">
                             <Upload size={16} />
@@ -192,7 +240,9 @@ export const TokenizerInput = () => {
                     </div>
                     {file && (
                         <div className="flex items-center rounded-md bg-neutral-800 border border-neutral-700 px-3 py-1.5 text-sm">
-                            <FileText size={14} className="mr-2" />
+                            {fileType === 'image' && <ImageIcon size={14} className="mr-2" />}
+                            {fileType === 'pdf' && <FileText size={14} className="mr-2" />}
+                            {fileType === 'text' && <FileText size={14} className="mr-2" />}
                             <span className="truncate max-w-[150px]">{file.name}</span>
                             <button 
                                 onClick={clearFile}
@@ -213,6 +263,17 @@ export const TokenizerInput = () => {
                     </button>
                 )}
             </div>
+            
+            {/* Image preview */}
+            {filePreview && fileType === 'image' && (
+                <div className="rounded-xl border border-neutral-700 bg-neutral-800 p-4 flex justify-center">
+                    <img
+                        src={filePreview}
+                        alt="Preview"
+                        className="max-h-64 object-contain rounded-md"
+                    />
+                </div>
+            )}
             
             {/* Text input area */}
             {!file && (
@@ -236,6 +297,7 @@ export const TokenizerInput = () => {
                 chars={stats.chars} 
                 isProcessing={isProcessing}
                 fileName={stats.fileName}
+                fileType={file ? fileType : 'text'}
                 model={selectedModelName}
             />
         </div>
@@ -247,10 +309,11 @@ interface TokenMetricsProps {
     chars: number;
     isProcessing: boolean;
     fileName?: string;
+    fileType: 'image' | 'pdf' | 'text' | 'unknown';
     model: string;
 }
 
-export const TokenMetrics = ({ tokens, chars, isProcessing, fileName, model }: TokenMetricsProps) => (
+export const TokenMetrics = ({ tokens, chars, isProcessing, fileName, fileType, model }: TokenMetricsProps) => (
     <div className="flex flex-wrap gap-6 p-4 rounded-xl bg-neutral-800 border border-neutral-700">
         <div className="space-y-1">
             <h2 className="text-xs font-medium text-neutral-400">Tokens</h2>
@@ -278,7 +341,9 @@ export const TokenMetrics = ({ tokens, chars, isProcessing, fileName, model }: T
         </div>
         {fileName && (
             <div className="space-y-1 flex-1">
-                <h2 className="text-xs font-medium text-neutral-400">File</h2>
+                <h2 className="text-xs font-medium text-neutral-400">
+                    {fileType === 'image' ? 'Image' : fileType === 'pdf' ? 'PDF' : 'File'}
+                </h2>
                 <p className="text-sm truncate">{fileName}</p>
             </div>
         )}

@@ -26,17 +26,18 @@ export async function POST(req: NextRequest) {
             const formData = await req.formData();
             const file = formData.get('file') as File | null;
             const formModel = formData.get('model') as string | null;
+            const fileType = formData.get('fileType') as string | null;
             
             if (formModel) {
                 model = formModel;
             }
             
             if (file) {
-                // For PDF files, we'll convert to base64 for the Anthropic API
                 const arrayBuffer = await file.arrayBuffer();
                 const fileContent = new Uint8Array(arrayBuffer);
+                fileChars = fileContent.length;
                 
-                if (file.type === 'application/pdf') {
+                if (fileType === 'pdf') {
                     // Convert PDF to base64
                     const base64Content = Buffer.from(fileContent).toString('base64');
                     
@@ -61,13 +62,43 @@ export async function POST(req: NextRequest) {
                     
                     return Response.json({ 
                         ...count,
-                        fileChars: fileContent.length,
+                        fileChars,
                         model: model
                     });
-                } else {
-                    // For text files, we'll convert to UTF-8 string
+                }
+                else if (fileType === 'image') {
+                    // Handle image file
+                    const base64Content = Buffer.from(fileContent).toString('base64');
+                    const mediaType = file.type || 'image/jpeg'; // Default to JPEG if type is not available
+                    
+                    // Count tokens for image using Anthropic API
+                    const count = await anthropic.beta.messages.countTokens({
+                        betas: ["token-counting-2024-11-01"],
+                        model: model,
+                        messages: [{
+                            role: 'user',
+                            content: [
+                                {
+                                    type: 'image',
+                                    source: {
+                                        type: 'base64',
+                                        media_type: mediaType,
+                                        data: base64Content
+                                    }
+                                }
+                            ]
+                        }]
+                    });
+                    
+                    return Response.json({
+                        ...count,
+                        fileChars,
+                        model: model
+                    });
+                }
+                else {
+                    // For text files, convert to UTF-8 string
                     text = new TextDecoder().decode(fileContent);
-                    fileChars = text.length;
                 }
             }
         } else {
