@@ -331,78 +331,116 @@ interface TokenMetricsProps {
     model: string;
 }
 
-export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, chars, isProcessing, fileName, fileType, model }: TokenMetricsProps) => (
-    <div className="flex flex-wrap gap-6 p-4 rounded-xl bg-neutral-800 border border-neutral-700">
-        {/* Claude Tokens */}
-        <div className="space-y-1">
-            <h2 className="text-xs font-medium text-neutral-400">Claude Tokens</h2>
-            <p className="text-3xl font-light">
-                {isProcessing ? (
-                    <span className="animate-pulse">...</span>
-                ) : (
-                    tokens.toLocaleString()
-                )}
-            </p>
-        </div>
+export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, chars, isProcessing, fileName, fileType, model }: TokenMetricsProps) => {
+    // Calculate percentage differences when tokens are available
+    const calculatePercentageDiff = (compareTokens: number | null, baseTokens: number): string => {
+        if (compareTokens === null || baseTokens === 0) return '';
         
-        {/* GPT-4o Tokens - only show for text inputs */}
-        {(fileType === 'text' || !fileName) && (
+        const diff = ((compareTokens - baseTokens) / baseTokens) * 100;
+        const formattedDiff = Math.abs(diff).toFixed(1);
+        
+        // Return formatted string with plus or minus sign
+        return diff < 0
+            ? ` (−${formattedDiff}%)` // minus sign (use Unicode minus for better typography)
+            : ` (+${formattedDiff}%)`;
+    };
+    
+    // Get percentage differences
+    const gpt4oDiff = tokens > 0 && gpt4oTokens !== null
+        ? calculatePercentageDiff(gpt4oTokens, tokens)
+        : '';
+    
+    const geminiDiff = tokens > 0 && geminiTokens !== null
+        ? calculatePercentageDiff(geminiTokens, tokens)
+        : '';
+    
+    return (
+        <div className="flex flex-wrap gap-6 p-4 rounded-xl bg-neutral-800 border border-neutral-700">
+            {/* Claude Tokens */}
             <div className="space-y-1">
-                <h2 className="text-xs font-medium text-neutral-400">GPT-4o Tokens</h2>
+                <h2 className="text-xs font-medium text-neutral-400">Claude Tokens</h2>
                 <p className="text-3xl font-light">
                     {isProcessing ? (
                         <span className="animate-pulse">...</span>
-                    ) : gpt4oTokens !== null ? (
-                        gpt4oTokens.toLocaleString()
                     ) : (
-                        "—"
+                        tokens.toLocaleString()
                     )}
                 </p>
             </div>
-        )}
-        
-        {/* Gemini Tokens - only show for text inputs */}
-        {(fileType === 'text' || !fileName) && (
+            
+            {/* GPT-4o Tokens - only show for text inputs */}
+            {(fileType === 'text' || !fileName) && (
+                <div className="space-y-1">
+                    <h2 className="text-xs font-medium text-neutral-400">GPT-4o Tokens</h2>
+                    <div className="flex items-baseline gap-2">
+                        <p className="text-3xl font-light">
+                            {isProcessing ? (
+                                <span className="animate-pulse">...</span>
+                            ) : gpt4oTokens !== null ? (
+                                gpt4oTokens.toLocaleString()
+                            ) : (
+                                "—"
+                            )}
+                        </p>
+                        {!isProcessing && gpt4oTokens !== null && tokens > 0 && (
+                            <span className={`text-sm ${gpt4oDiff.includes('−') ? 'text-green-400' : 'text-orange-400'}`}>
+                                {gpt4oDiff}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+            
+            {/* Gemini Tokens - only show for text inputs */}
+            {(fileType === 'text' || !fileName) && (
+                <div className="space-y-1">
+                    <h2 className="text-xs font-medium text-neutral-400">Gemini Tokens</h2>
+                    <div className="flex items-baseline gap-2">
+                        <p className="text-3xl font-light">
+                            {isProcessing ? (
+                                <span className="animate-pulse">...</span>
+                            ) : geminiTokens !== null ? (
+                                geminiTokens.toLocaleString()
+                            ) : (
+                                "—"
+                            )}
+                        </p>
+                        {!isProcessing && geminiTokens !== null && tokens > 0 && (
+                            <span className={`text-sm ${geminiDiff.includes('−') ? 'text-green-400' : 'text-orange-400'}`}>
+                                {geminiDiff}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+            
+            {/* Character Count */}
             <div className="space-y-1">
-                <h2 className="text-xs font-medium text-neutral-400">Gemini Tokens</h2>
+                <h2 className="text-xs font-medium text-neutral-400">Characters</h2>
                 <p className="text-3xl font-light">
                     {isProcessing ? (
                         <span className="animate-pulse">...</span>
-                    ) : geminiTokens !== null ? (
-                        geminiTokens.toLocaleString()
                     ) : (
-                        "—"
+                        chars.toLocaleString()
                     )}
                 </p>
             </div>
-        )}
-        
-        {/* Character Count */}
-        <div className="space-y-1">
-            <h2 className="text-xs font-medium text-neutral-400">Characters</h2>
-            <p className="text-3xl font-light">
-                {isProcessing ? (
-                    <span className="animate-pulse">...</span>
-                ) : (
-                    chars.toLocaleString()
-                )}
-            </p>
-        </div>
-        
-        {/* Model */}
-        <div className="space-y-1">
-            <h2 className="text-xs font-medium text-neutral-400">Model</h2>
-            <p className="text-sm">{model}</p>
-        </div>
-        
-        {/* File info if applicable */}
-        {fileName && (
-            <div className="space-y-1 flex-1">
-                <h2 className="text-xs font-medium text-neutral-400">
-                    {fileType === 'image' ? 'Image' : fileType === 'pdf' ? 'PDF' : 'File'}
-                </h2>
-                <p className="text-sm truncate">{fileName}</p>
+            
+            {/* Model */}
+            <div className="space-y-1">
+                <h2 className="text-xs font-medium text-neutral-400">Model</h2>
+                <p className="text-sm">{model}</p>
             </div>
-        )}
-    </div>
-);
+            
+            {/* File info if applicable */}
+            {fileName && (
+                <div className="space-y-1 flex-1">
+                    <h2 className="text-xs font-medium text-neutral-400">
+                        {fileType === 'image' ? 'Image' : fileType === 'pdf' ? 'PDF' : 'File'}
+                    </h2>
+                    <p className="text-sm truncate">{fileName}</p>
+                </div>
+            )}
+        </div>
+    );
+};
