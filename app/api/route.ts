@@ -69,7 +69,14 @@ export async function POST(req: NextRequest) {
                 else if (fileType === 'image') {
                     // Handle image file
                     const base64Content = Buffer.from(fileContent).toString('base64');
-                    const mediaType = file.type || 'image/jpeg'; // Default to JPEG if type is not available
+                    
+                    // Ensure the media type is one of the supported formats
+                    let mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
+                    
+                    if (file.type === 'image/png') mediaType = 'image/png';
+                    else if (file.type === 'image/gif') mediaType = 'image/gif';
+                    else if (file.type === 'image/webp') mediaType = 'image/webp';
+                    // Default to JPEG for any other format
                     
                     // Count tokens for image using Anthropic API
                     const count = await anthropic.beta.messages.countTokens({
