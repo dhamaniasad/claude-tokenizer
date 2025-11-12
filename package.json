@@ -1,5 +1,5 @@
 {
-  "name": "shadcn-theming-test",
+  "name": "claude-tokenizer",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,23 +11,19 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@google/generative-ai": "^0.2.1",
-    "@radix-ui/react-slot": "^1.1.0",
-    "@tailwindcss/typography": "^0.5.15",
+    "@next/font": "^14.2.16",
     "@vercel/analytics": "^1.4.1",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "js-tiktoken": "^1.0.19",
     "lucide-react": "^0.462.0",
     "next": "14.2.16",
     "react": "^18",
-    "react-dom": "^18",
-    "tailwind-merge": "^2.5.5",
-    "tailwindcss-animate": "^1.0.7"
+    "react-dom": "^18"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.19",
     "eslint": "^8",
     "eslint-config-next": "14.2.16",
     "postcss": "^8",

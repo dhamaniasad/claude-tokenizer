@@ -21,9 +21,12 @@ export default function TokenizerPage() {
         </div>
 
         <TokenizerInput />
-        
-        <footer className="mt-10 text-neutral-500 text-sm text-center">
-          This website is not affiliated with or endorsed by Anthropic.
+
+        <footer className="mt-10 text-neutral-500 text-sm text-center space-y-2">
+          <p>This website is not affiliated with or endorsed by Anthropic.</p>
+          <p>
+            See my other projects: <a href="https://www.memoryplugin.com?ref=claude-tokenizer" className="text-orange-400 hover:text-orange-300">MemoryPlugin</a> - long term memory for all your AI tools
+          </p>
         </footer>
       </div>
     </div>
