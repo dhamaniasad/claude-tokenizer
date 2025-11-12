@@ -10,7 +10,7 @@ export default function TokenizerPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-medium mb-2">Claude Tokenizer</h1>
           <p className="text-neutral-400">
-            This tool uses Anthropic's token counting API to count tokens for Claude models. Upload <span className="text-orange-400">text files, PDFs or images, or paste text directly</span>.
+            Count tokens for the latest Claude models including <span className="text-orange-400">Claude Sonnet 4.5, Opus 4.1, Haiku 4.5</span> and more. Upload <span className="text-orange-400">text files, PDFs or images, or paste text directly</span>.
           </p>
           <p className="text-neutral-500">
             We do not store any files or data. They are discarded immediately after processing.

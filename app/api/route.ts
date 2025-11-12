@@ -13,7 +13,7 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 // Default model to use if none is provided
-const DEFAULT_MODEL = 'claude-3-7-sonnet-20250219';
+const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
 
 // Function to get GPT-4o token count
 function getGPT4oTokenCount(text: string) {

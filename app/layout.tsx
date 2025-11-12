@@ -18,7 +18,7 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "Claude Tokenizer",
-  description: "A Tokenizer for Claude 3.5 Sonnet",
+  description: "A Tokenizer for Claude models including Claude Sonnet 4.5, Opus 4.1, Haiku 4.5, and more. Count tokens for text, PDFs, and images.",
 };
 
 export default function RootLayout({
