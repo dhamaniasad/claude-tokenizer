@@ -11,7 +11,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@google/generative-ai": "^0.2.1",
-    "@next/font": "^14.2.16",
     "@vercel/analytics": "^1.4.1",
     "js-tiktoken": "^1.0.19",
     "lucide-react": "^0.462.0",
