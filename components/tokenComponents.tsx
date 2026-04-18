@@ -14,6 +14,9 @@ const debounce = <T extends (...args: any[]) => void>(func: T, delay: number) =>
 
 // Available Claude models
 const CLAUDE_MODELS = [
+    { id: 'claude-opus-4-7', name: 'Claude Opus 4.7' },
+    { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
+    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
     { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' },
     { id: 'claude-opus-4-1-20250805', name: 'Claude Opus 4.1' },
     { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
@@ -21,6 +24,12 @@ const CLAUDE_MODELS = [
     { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
     { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet' },
 ];
+
+// Opus 4.7 introduced a new tokenizer — when it's selected we also run
+// Opus 4.6 for a side-by-side comparison.
+const OPUS_47_ID = 'claude-opus-4-7';
+const OPUS_46_ID = 'claude-opus-4-6';
+const OPUS_46_NAME = 'Claude Opus 4.6';
 
 // List of supported file types
 const ACCEPTED_FILE_TYPES = {
@@ -62,13 +71,17 @@ export const TokenizerInput = () => {
         tokens: number | null;
         gpt4oTokens: number | null;
         geminiTokens: number | null;
+        comparisonTokens: number | null;
+        comparisonModel: string | null;
         chars: number;
         fileName?: string
     }>({
-        tokens: null, 
+        tokens: null,
         gpt4oTokens: null,
         geminiTokens: null,
-        chars: 0 
+        comparisonTokens: null,
+        comparisonModel: null,
+        chars: 0
     });
     const [error, setError] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -76,21 +89,31 @@ export const TokenizerInput = () => {
 
     const handleAnalyzeText = async (text: string) => {
         if (!text.trim()) {
-            setStats({ tokens: null, gpt4oTokens: null, geminiTokens: null, chars: 0 });
+            setStats({
+                tokens: null,
+                gpt4oTokens: null,
+                geminiTokens: null,
+                comparisonTokens: null,
+                comparisonModel: null,
+                chars: 0
+            });
             setError(null);
             return;
         }
 
         try {
             setIsProcessing(true);
-            
+
+            const comparisonModel = selectedModel === OPUS_47_ID ? OPUS_46_ID : null;
+
             // Get all token counts from the API
             const response = await fetch('/api', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     text,
-                    model: selectedModel
+                    model: selectedModel,
+                    comparisonModel
                 }),
             });
 
@@ -103,13 +126,25 @@ export const TokenizerInput = () => {
                 tokens: data.input_tokens > 7 ? data.input_tokens - 7 : 0,
                 gpt4oTokens: data.gpt4oTokens,
                 geminiTokens: data.geminiTokens,
+                comparisonTokens:
+                    data.comparisonTokens != null && data.comparisonTokens > 7
+                        ? data.comparisonTokens - 7
+                        : data.comparisonTokens,
+                comparisonModel: data.comparisonModel ?? null,
                 chars: text.length,
             });
             setError(null);
         } catch (err) {
             console.error("Token counting error:", err);
             setError("Failed to analyze text. Please try again.");
-            setStats({ tokens: null, gpt4oTokens: null, geminiTokens: null, chars: text.length });
+            setStats({
+                tokens: null,
+                gpt4oTokens: null,
+                geminiTokens: null,
+                comparisonTokens: null,
+                comparisonModel: null,
+                chars: text.length
+            });
         } finally {
             setIsProcessing(false);
         }
@@ -117,15 +152,18 @@ export const TokenizerInput = () => {
 
     const handleAnalyzeFile = async () => {
         if (!file) return;
-        
+
         setIsProcessing(true);
-        
+
         try {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('model', selectedModel);
             formData.append('fileType', fileType);
-            
+            if (selectedModel === OPUS_47_ID) {
+                formData.append('comparisonModel', OPUS_46_ID);
+            }
+
             const response = await fetch('/api', {
                 method: 'POST',
                 body: formData,
@@ -140,6 +178,11 @@ export const TokenizerInput = () => {
                 tokens: data.input_tokens > 7 ? data.input_tokens - 7 : 0,
                 gpt4oTokens: data.gpt4oTokens,
                 geminiTokens: data.geminiTokens,
+                comparisonTokens:
+                    data.comparisonTokens != null && data.comparisonTokens > 7
+                        ? data.comparisonTokens - 7
+                        : data.comparisonTokens,
+                comparisonModel: data.comparisonModel ?? null,
                 chars: data.fileChars || 0,
                 fileName: file.name
             });
@@ -147,7 +190,14 @@ export const TokenizerInput = () => {
         } catch (err) {
             console.error("Token counting error:", err);
             setError("Failed to analyze file. Please try again.");
-            setStats({ tokens: null, gpt4oTokens: null, geminiTokens: null, chars: 0 });
+            setStats({
+                tokens: null,
+                gpt4oTokens: null,
+                geminiTokens: null,
+                comparisonTokens: null,
+                comparisonModel: null,
+                chars: 0
+            });
         } finally {
             setIsProcessing(false);
         }
@@ -169,7 +219,15 @@ export const TokenizerInput = () => {
             setFile(selectedFile);
             setFileType(type);
             setText('');
-            setStats({ tokens: null, gpt4oTokens: null, geminiTokens: null, chars: 0, fileName: selectedFile.name });
+            setStats({
+                tokens: null,
+                gpt4oTokens: null,
+                geminiTokens: null,
+                comparisonTokens: null,
+                comparisonModel: null,
+                chars: 0,
+                fileName: selectedFile.name
+            });
             
             // Create preview for image files
             if (type === 'image') {
@@ -188,7 +246,14 @@ export const TokenizerInput = () => {
         setFile(null);
         setFileType('unknown');
         setFilePreview(null);
-        setStats({ tokens: null, gpt4oTokens: null, geminiTokens: null, chars: 0 });
+        setStats({
+            tokens: null,
+            gpt4oTokens: null,
+            geminiTokens: null,
+            comparisonTokens: null,
+            comparisonModel: null,
+            chars: 0
+        });
         // Reset the file input
         const fileInput = document.getElementById('file-upload') as HTMLInputElement;
         if (fileInput) {
@@ -304,13 +369,29 @@ export const TokenizerInput = () => {
             )}
             
             {error && <p className="text-orange-400 mb-2">{error}</p>}
-            
+
+            {/* Opus 4.7 new-tokenizer notice */}
+            {selectedModel === OPUS_47_ID && (
+                <div className="rounded-md border border-amber-600/40 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+                    <span className="font-medium">Heads up:</span> Claude Opus 4.7 uses a
+                    new tokenizer that typically produces <em>more</em> tokens for the same
+                    input than Opus 4.6 and earlier models. For reference we also run the
+                    Opus 4.6 tokenizer and show both counts below.
+                </div>
+            )}
+
             {/* Token metrics display */}
-            <TokenMetrics 
-                tokens={stats.tokens ?? 0} 
+            <TokenMetrics
+                tokens={stats.tokens ?? 0}
                 gpt4oTokens={stats.gpt4oTokens}
                 geminiTokens={stats.geminiTokens}
-                chars={stats.chars} 
+                comparisonTokens={stats.comparisonTokens}
+                comparisonModelName={
+                    stats.comparisonModel === OPUS_46_ID
+                        ? OPUS_46_NAME
+                        : stats.comparisonModel
+                }
+                chars={stats.chars}
                 isProcessing={isProcessing}
                 fileName={stats.fileName}
                 fileType={file ? fileType : 'text'}
@@ -324,6 +405,8 @@ interface TokenMetricsProps {
     tokens: number;
     gpt4oTokens: number | null;
     geminiTokens: number | null;
+    comparisonTokens: number | null;
+    comparisonModelName: string | null;
     chars: number;
     isProcessing: boolean;
     fileName?: string;
@@ -331,7 +414,7 @@ interface TokenMetricsProps {
     model: string;
 }
 
-export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, chars, isProcessing, fileName, fileType, model }: TokenMetricsProps) => {
+export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, comparisonTokens, comparisonModelName, chars, isProcessing, fileName, fileType, model }: TokenMetricsProps) => {
     // Calculate percentage differences when tokens are available
     const calculatePercentageDiff = (compareTokens: number | null, baseTokens: number): string => {
         if (compareTokens === null || baseTokens === 0) return '';
@@ -353,7 +436,13 @@ export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, chars, isProce
     const geminiDiff = tokens > 0 && geminiTokens !== null
         ? calculatePercentageDiff(geminiTokens, tokens)
         : '';
-    
+
+    // Comparison shows how many fewer (or more) tokens the other Claude tokenizer
+    // produced vs. the currently selected model.
+    const comparisonDiff = tokens > 0 && comparisonTokens !== null
+        ? calculatePercentageDiff(comparisonTokens, tokens)
+        : '';
+
     return (
         <div className="flex flex-wrap gap-6 p-4 rounded-xl bg-neutral-800 border border-neutral-700">
             {/* Claude Tokens */}
@@ -367,7 +456,32 @@ export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, chars, isProce
                     )}
                 </p>
             </div>
-            
+
+            {/* Comparison Claude tokenizer (e.g. Opus 4.6 vs selected Opus 4.7) */}
+            {comparisonModelName && (
+                <div className="space-y-1">
+                    <h2 className="text-xs font-medium text-neutral-400">
+                        {comparisonModelName} Tokens
+                    </h2>
+                    <div className="flex items-baseline gap-2">
+                        <p className="text-3xl font-light">
+                            {isProcessing ? (
+                                <span className="animate-pulse">...</span>
+                            ) : comparisonTokens !== null ? (
+                                comparisonTokens.toLocaleString()
+                            ) : (
+                                "—"
+                            )}
+                        </p>
+                        {!isProcessing && comparisonTokens !== null && tokens > 0 && (
+                            <span className={`text-sm ${comparisonDiff.includes('−') ? 'text-green-400' : 'text-orange-400'}`}>
+                                {comparisonDiff}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* GPT-4o Tokens - only show for text inputs */}
             {(fileType === 'text' || !fileName) && (
                 <div className="space-y-1">
