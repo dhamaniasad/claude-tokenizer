@@ -12,18 +12,32 @@ const debounce = <T extends (...args: any[]) => void>(func: T, delay: number) =>
     };
 };
 
-// Available Claude models
+// Available Claude models, with per-million-token input pricing (USD)
 const CLAUDE_MODELS = [
-    { id: 'claude-opus-4-7', name: 'Claude Opus 4.7' },
-    { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
-    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
-    { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' },
-    { id: 'claude-opus-4-1-20250805', name: 'Claude Opus 4.1' },
-    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
-    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-    { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
-    { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet' },
+    { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', inputPricePerMTok: 15 },
+    { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', inputPricePerMTok: 15 },
+    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', inputPricePerMTok: 3 },
+    { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', inputPricePerMTok: 3 },
+    { id: 'claude-opus-4-1-20250805', name: 'Claude Opus 4.1', inputPricePerMTok: 15 },
+    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', inputPricePerMTok: 1 },
+    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', inputPricePerMTok: 3 },
+    { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', inputPricePerMTok: 15 },
+    { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', inputPricePerMTok: 3 },
 ];
+
+// Input pricing (USD per million tokens) for comparison models.
+const GPT4O_INPUT_PRICE_PER_MTOK = 2.5;
+const GEMINI_INPUT_PRICE_PER_MTOK = 0.3;
+
+// Format a token-based cost estimate as a dollar amount. Uses more decimal
+// places for very small values so the figure doesn't just display as "$0.00".
+const formatCost = (tokens: number, pricePerMTok: number): string => {
+    const cost = (tokens / 1_000_000) * pricePerMTok;
+    if (cost === 0) return '$0.00';
+    if (cost < 0.01) return `$${cost.toFixed(5)}`;
+    if (cost < 1) return `$${cost.toFixed(4)}`;
+    return `$${cost.toFixed(2)}`;
+};
 
 // Opus 4.7 introduced a new tokenizer — when it's selected we also run
 // Opus 4.6 for a side-by-side comparison.
@@ -270,7 +284,13 @@ export const TokenizerInput = () => {
         setShowModelDropdown(false);
     };
 
-    const selectedModelName = CLAUDE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel;
+    const selectedModelInfo = CLAUDE_MODELS.find(m => m.id === selectedModel);
+    const selectedModelName = selectedModelInfo?.name || selectedModel;
+    const selectedModelPrice = selectedModelInfo?.inputPricePerMTok ?? null;
+    const comparisonModelInfo = stats.comparisonModel
+        ? CLAUDE_MODELS.find(m => m.id === stats.comparisonModel)
+        : null;
+    const comparisonModelPrice = comparisonModelInfo?.inputPricePerMTok ?? null;
 
     return (
         <div className="flex flex-col space-y-4 max-w-3xl mx-auto">
@@ -396,6 +416,8 @@ export const TokenizerInput = () => {
                 fileName={stats.fileName}
                 fileType={file ? fileType : 'text'}
                 model={selectedModelName}
+                modelInputPricePerMTok={selectedModelPrice}
+                comparisonInputPricePerMTok={comparisonModelPrice}
             />
         </div>
     );
@@ -412,9 +434,11 @@ interface TokenMetricsProps {
     fileName?: string;
     fileType: 'image' | 'pdf' | 'text' | 'unknown';
     model: string;
+    modelInputPricePerMTok: number | null;
+    comparisonInputPricePerMTok: number | null;
 }
 
-export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, comparisonTokens, comparisonModelName, chars, isProcessing, fileName, fileType, model }: TokenMetricsProps) => {
+export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, comparisonTokens, comparisonModelName, chars, isProcessing, fileName, fileType, model, modelInputPricePerMTok, comparisonInputPricePerMTok }: TokenMetricsProps) => {
     // Calculate percentage differences when tokens are available
     const calculatePercentageDiff = (compareTokens: number | null, baseTokens: number): string => {
         if (compareTokens === null || baseTokens === 0) return '';
@@ -455,6 +479,12 @@ export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, comparisonToke
                         tokens.toLocaleString()
                     )}
                 </p>
+                {!isProcessing && tokens > 0 && modelInputPricePerMTok !== null && (
+                    <p className="text-xs text-neutral-500">
+                        Est. input cost: {formatCost(tokens, modelInputPricePerMTok)}
+                        <span className="text-neutral-600"> @ ${modelInputPricePerMTok}/MTok</span>
+                    </p>
+                )}
             </div>
 
             {/* Comparison Claude tokenizer (e.g. Opus 4.6 vs selected Opus 4.7) */}
@@ -479,6 +509,12 @@ export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, comparisonToke
                             </span>
                         )}
                     </div>
+                    {!isProcessing && comparisonTokens !== null && comparisonTokens > 0 && comparisonInputPricePerMTok !== null && (
+                        <p className="text-xs text-neutral-500">
+                            Est. input cost: {formatCost(comparisonTokens, comparisonInputPricePerMTok)}
+                            <span className="text-neutral-600"> @ ${comparisonInputPricePerMTok}/MTok</span>
+                        </p>
+                    )}
                 </div>
             )}
 
@@ -502,9 +538,15 @@ export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, comparisonToke
                             </span>
                         )}
                     </div>
+                    {!isProcessing && gpt4oTokens !== null && gpt4oTokens > 0 && (
+                        <p className="text-xs text-neutral-500">
+                            Est. input cost: {formatCost(gpt4oTokens, GPT4O_INPUT_PRICE_PER_MTOK)}
+                            <span className="text-neutral-600"> @ ${GPT4O_INPUT_PRICE_PER_MTOK}/MTok</span>
+                        </p>
+                    )}
                 </div>
             )}
-            
+
             {/* Gemini Tokens - only show for text inputs */}
             {(fileType === 'text' || !fileName) && (
                 <div className="space-y-1">
@@ -525,6 +567,12 @@ export const TokenMetrics = ({ tokens, gpt4oTokens, geminiTokens, comparisonToke
                             </span>
                         )}
                     </div>
+                    {!isProcessing && geminiTokens !== null && geminiTokens > 0 && (
+                        <p className="text-xs text-neutral-500">
+                            Est. input cost: {formatCost(geminiTokens, GEMINI_INPUT_PRICE_PER_MTOK)}
+                            <span className="text-neutral-600"> @ ${GEMINI_INPUT_PRICE_PER_MTOK}/MTok</span>
+                        </p>
+                    )}
                 </div>
             )}
             
